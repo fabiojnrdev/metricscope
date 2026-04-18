@@ -1,34 +1,38 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from app.core.database import SessionLocal
+from app.core.database import get_db
+from app.core.deps import get_current_user
 from app.domains.auth import service
-from app.core.security import create_token
+from app.domains.auth.schemas import (
+    RegisterRequest, LoginRequest, RefreshRequest,
+    TokenResponse, UserResponse,
+)
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-@router.post("/register")
-def register(data: dict, db: Session = Depends(get_db)):
-    user = service.create_user(db, data["email"], data["password"])
-    return {"id": user.id}
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
+    user = service.create_user(db, data.email, data.password, data.full_name)
+    return user
 
-@router.post("/login")
-def login(data: dict, db: Session = Depends(get_db)):
-    user = service.authenticate_user(db, data["email"], data["password"])
-    if not user:
-        return {"error": "invalid credentials"}
 
-    token = create_token({"sub": user.id})
-    return {"access_token": token}
-def get_current_user(token: str = Depends(create_token), db: Session = Depends(get_db)):
-    user_id = service.get_current_user(token)
-    if user_id is None:
-        return {"error": "invalid token"}
-    user = db.query(service.User).filter(service.User.id == user_id).first()
-    
+@router.post("/login", response_model=TokenResponse)
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    user = service.authenticate_user(db, data.email, data.password)
+    return service.issue_tokens(db, user)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
+    return service.refresh_access_token(db, data.refresh_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(data: RefreshRequest, db: Session = Depends(get_db)):
+    service.revoke_refresh_token(db, data.refresh_token)
+
+
+@router.get("/me", response_model=UserResponse)
+def me(current_user=Depends(get_current_user)):
+    return current_user
