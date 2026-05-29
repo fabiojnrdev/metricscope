@@ -1,8 +1,7 @@
 import hashlib
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from app.domains.users.models import User
-from backend.app.domains.users.models import RefreshToken
+from app.domains.users.models import User, RefreshToken
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
 from app.core.config import settings
 from app.core.exceptions import ConflictError, UnauthorizedError
