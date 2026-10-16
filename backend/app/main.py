@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+
+import app.db.base  # noqa: F401  (registra todos os models)
 from app.domains.auth.routes import router as auth_router
 
 app = FastAPI()
